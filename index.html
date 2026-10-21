@@ -1,0 +1,173 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Hextrig Groovebox</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="A six-track FM groovebox in the browser. Every sound is synthesized live.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Michroma&family=Silkscreen&display=swap">
+<link rel="stylesheet" href="css/hextrig.css">
+
+<div class="stage">
+  <main class="unit" id="unit">
+
+    <!-- ===== deck: brand · transport · screen · master ===== -->
+    <header class="deck">
+      <div class="brand">
+        <div class="wordmark">HEXTRIG</div>
+        <div class="model">HX-6 · six-track FM groovebox</div>
+      </div>
+
+      <div class="transport" data-keep-pop>
+        <button type="button" class="key k-play" id="btnPlay" aria-label="Play, pause or continue (Shift + Space)">
+          <svg class="i-play" viewBox="0 0 14 14" aria-hidden="true"><path d="M3.5 2.2v9.6L11.6 7z" fill="currentColor"/></svg>
+          <svg class="i-pause" viewBox="0 0 14 14" aria-hidden="true"><path d="M3.5 2.5h2.6v9H3.5zM7.9 2.5h2.6v9H7.9z" fill="currentColor"/></svg>
+        </button>
+        <button type="button" class="key" id="btnStop" aria-label="Stop">
+          <svg viewBox="0 0 14 14" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1" fill="currentColor"/></svg>
+        </button>
+        <button type="button" class="key k-rec" id="btnRec" aria-label="Record" aria-pressed="false">
+          <svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="4" fill="currentColor"/></svg>
+        </button>
+        <div class="dn">
+          <span class="dn-label">TEMPO</span>
+          <div class="dn-row">
+            <div class="dn-val" id="bpm" tabindex="0" role="spinbutton" aria-label="Tempo, drag up or down">124.0</div>
+            <div class="nudge" aria-label="Nudge tempo while held">
+              <button type="button" id="btnNudgeUp" aria-label="Push ahead (hold)">+</button>
+              <button type="button" id="btnNudgeDn" aria-label="Pull back (hold)">−</button>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="key k-text" id="btnTap">Tap</button>
+        <div class="dn">
+          <span class="dn-label">SWING</span>
+          <div class="dn-val dn-short" id="swing" tabindex="0" role="spinbutton" aria-label="Swing, drag up or down">50%</div>
+        </div>
+        <button type="button" class="key k-text k-fill" id="btnFill" title="Hold (or hold F). Shift-click latches.">Fill</button>
+      </div>
+
+      <div class="screen">
+        <canvas id="oled" width="512" height="128" aria-label="Display: pattern, tempo, live scope"></canvas>
+      </div>
+
+      <div class="masterbox" data-keep-pop>
+        <div class="sweep-host" id="sweepHost"></div>
+        <div class="master-keys">
+          <button type="button" class="key k-text" id="btnFx">FX</button>
+          <button type="button" class="key k-text" id="btnTime" title="Clock, count-in, song mode and MIDI">Time</button>
+          <button type="button" class="key k-text k-cap" id="btnCapture" title="Record full bars of what you hear (Enter)"><span class="cap-led"></span>Capture</button>
+          <button type="button" class="key k-text" id="btnExport" title="Takes, bounce to WAV + stems + MIDI">Export<span class="badge" id="takeCount" hidden></span></button>
+        </div>
+      </div>
+    </header>
+
+    <div class="soundbar" id="soundBar" hidden role="status">
+      <span>No sound yet? Phones only start audio from a tap, and some in-app browsers block it.</span>
+      <button type="button" class="key k-text k-sm" data-sc="open">Sound check</button>
+      <button type="button" class="key k-text k-sm" data-sc="hide" aria-label="Hide this message">×</button>
+    </div>
+
+    <!-- ===== patterns ===== -->
+    <section class="patbar" aria-label="Patterns">
+      <span class="lbl">PATTERN</span>
+      <div class="slots" id="slots"></div>
+      <div class="patacts">
+        <button type="button" class="key k-text k-sm" id="btnUndo" title="Undo (⌘/Ctrl + Z)">Undo</button>
+        <button type="button" class="key k-text k-sm" id="btnRedo" title="Redo (⌘/Ctrl + Shift + Z)">Redo</button>
+        <button type="button" class="key k-text k-sm" id="btnDup" title="Copy this pattern to the next empty slot and queue it">Duplicate</button>
+        <button type="button" class="key k-text k-sm" id="btnClearPat">Clear</button>
+        <button type="button" class="key k-text k-sm" id="btnIO">Save · Load</button>
+        <button type="button" class="key k-text k-sm" id="btnHelp" aria-label="Help and shortcuts">?</button>
+      </div>
+    </section>
+
+    <!-- ===== perform: scenes A / B, crossfader, control all ===== -->
+    <section class="perf" aria-label="Perform" data-keep-pop>
+      <span class="lbl perf-lbl">PERFORM</span>
+      <div class="pside pside-a">
+        <button type="button" class="punch" id="punchA" title="Hold to jump to scene A">A</button>
+        <div class="pscene">
+          <button type="button" class="pstep" data-side="a" data-d="-1" aria-label="Previous scene on A">‹</button>
+          <output id="sceneA">1 DRY</output>
+          <button type="button" class="pstep" data-side="a" data-d="1" aria-label="Next scene on A">›</button>
+        </div>
+        <button type="button" class="pedit" id="editA" aria-pressed="false" title="Edit scene A: every slider you move writes into it">Edit</button>
+      </div>
+      <div class="xf" id="xf" role="slider" tabindex="0" aria-label="Crossfader, scene A to scene B" aria-valuemin="0" aria-valuemax="127" aria-valuenow="0">
+        <span class="xf-fill" aria-hidden="true"></span><span class="xf-ticks" aria-hidden="true"></span><span class="xf-thumb" aria-hidden="true"></span>
+      </div>
+      <div class="pside pside-b">
+        <button type="button" class="pedit" id="editB" aria-pressed="false" title="Edit scene B: every slider you move writes into it">Edit</button>
+        <div class="pscene">
+          <button type="button" class="pstep" data-side="b" data-d="-1" aria-label="Previous scene on B">‹</button>
+          <output id="sceneB">2 DUB OUT</output>
+          <button type="button" class="pstep" data-side="b" data-d="1" aria-label="Next scene on B">›</button>
+        </div>
+        <button type="button" class="punch" id="punchB" title="Hold to jump to scene B">B</button>
+      </div>
+      <div class="pacts">
+        <button type="button" class="key k-text k-sm k-toggle" id="btnAll" aria-pressed="false" title="One slider moves the same parameter on all six tracks">Control all</button>
+        <button type="button" class="key k-text k-sm" id="btnKeep" hidden>Keep</button>
+        <button type="button" class="key k-text k-sm" id="btnRevert" hidden>Revert</button>
+        <button type="button" class="key k-text k-sm" id="btnScenes">Scenes</button>
+      </div>
+    </section>
+
+    <!-- ===== six engines ===== -->
+    <section class="tracks" id="tracks" aria-label="Engines" data-keep-pop></section>
+
+    <!-- ===== sequencer ===== -->
+    <section class="seq" aria-label="Sequencer">
+      <div class="seqbar">
+        <span class="lbl">PAGE</span>
+        <div class="pages" id="pages"></div>
+        <span class="lbl">LENGTH</span>
+        <div class="lenctl">
+          <button type="button" class="key k-sm" id="btnHalf" aria-label="Halve pattern length">÷2</button>
+          <output id="lenOut">16</output>
+          <button type="button" class="key k-sm" id="btnDouble" aria-label="Double pattern length (copies the steps)">×2</button>
+        </div>
+        <button type="button" class="key k-text k-sm k-toggle" id="btnFollow" aria-pressed="true">Follow</button>
+        <span class="lbl">EDIT</span>
+        <div class="layers" id="layers" role="radiogroup" aria-label="What the step keys edit">
+          <button type="button" data-layer="trig" aria-checked="true" role="radio">Trigs</button>
+          <button type="button" data-layer="lock" aria-checked="false" role="radio" title="Locks without a trig: change a note while it rings">Locks</button>
+          <button type="button" data-layer="slide" aria-checked="false" role="radio" title="Glide into a step from the one before">Slide</button>
+          <button type="button" data-layer="vel" aria-checked="false" role="radio">Velocity</button>
+          <button type="button" data-layer="prob" aria-checked="false" role="radio">Chance</button>
+          <button type="button" data-layer="micro" aria-checked="false" role="radio">Micro</button>
+          <button type="button" data-layer="note" aria-checked="false" role="radio">Note</button>
+        </div>
+        <span class="seq-hint" id="seqHint">Click a step to add a trig · drag to paint · right-click or hold to lock · wheel for velocity</span>
+      </div>
+      <div class="lanes" id="lanes" data-keep-pop></div>
+    </section>
+
+    <footer class="foot">
+      <span>All six engines are synthesized live in your browser. Press <kbd>?</kbd> for every gesture and shortcut.</span>
+      <span>Created by Iman Anvari</span>
+    </footer>
+  </main>
+</div>
+
+<div id="pop" class="pop" hidden role="dialog" aria-label="Parameters"></div>
+<div id="modal" class="modal" hidden><div class="modal-card" role="dialog" aria-modal="true"><div class="modal-body"></div></div></div>
+
+<script src="js/config.js"></script>
+<script src="js/machines.js"></script>
+<script src="js/state.js"></script>
+<script src="js/clock.js"></script>
+<script src="js/seqcore.js"></script>
+<script src="js/perform.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/library.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/sequencer.js"></script>
+<script src="js/midi.js"></script>
+<script src="js/export.js"></script>
+<script src="js/oled.js"></script>
+<script src="js/panel.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+
+</body></html>
